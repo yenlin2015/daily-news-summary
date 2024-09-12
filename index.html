@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily News Summary</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        h1 {
+            text-align: center;
+            margin: 0;
+            font-weight: 300;
+            font-size: 2.5em;
+        }
+        .filters {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .filters select, .filters input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        .filters select:last-child, .filters input:last-child {
+            margin-right: 0;
+        }
+        .article {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .sender {
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .date {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .topic {
+            font-weight: 700;
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        .key-takeaways {
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        @media (max-width: 768px) {
+            .filters {
+                flex-direction: column;
+            }
+            .filters select, .filters input {
+                width: 100%;
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Daily News Summary</h1>
+        </div>
+    </header>
+    <div class="container">
+        <div class="filters">
+            <input type="date" id="date-filter">
+            <select id="sender-filter">
+                <option value="all">All Senders</option>
+            </select>
+        </div>
+        <div id="news-container"></div>
+    </div>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+        // Your API key
+        const API_KEY = 'AIzaSyDi-CZqVvlp16jMRTvLiCdAJEqTO_pcsTU';
+        // Your Google Sheet ID
+        const SHEET_ID = '1DlBRze6f3BK6LAEhHE9SXuf74wn5WtowaFGs522IVqs';
+        // The range of cells to fetch
+        const RANGE = 'Sheet1!A2:D1000';
+
+        let allNewsData = [];
+
+        function loadGoogleSheets() {
+            console.log('Loading Google Sheets API...');
+            gapi.client.init({
+                'apiKey': API_KEY,
+                'discoveryDocs': ["https://sheets.googleapis.com/$discovery/rest?version=v4"],
+            }).then(function() {
+                console.log('API initialized, fetching data...');
+                return gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: SHEET_ID,
+                    range: RANGE,
+                });
+            }).then(function(response) {
+                console.log('Data fetched:', response);
+                allNewsData = response.result.values;
+                displayNews(allNewsData);
+                setupFilters();
+            }).catch(function(error) {
+                console.error('Error:', error);
+                let errorMessage = 'An error occurred while loading the news.';
+                if (error.result && error.result.error) {
+                    errorMessage += ' Error details: ' + error.result.error.message;
+                }
+                document.getElementById('news-container').innerHTML = `<p>${errorMessage}</p>`;
+            });
+        }
+
+        function displayNews(data) {
+            console.log('Displaying news...');
+            const newsContainer = document.getElementById('news-container');
+            newsContainer.innerHTML = ''; // Clear previous content
+
+            if (!data || data.length === 0) {
+                newsContainer.innerHTML = '<p>No news data available.</p>';
+                return;
+            }
+
+            let currentArticle = document.createElement('div');
+            currentArticle.classList.add('article');
+
+            data.forEach(row => {
+                if (row.every(cell => cell === '')) {
+                    // Empty row, add the current article to the container and start a new one
+                    if (currentArticle.children.length > 0) {
+                        newsContainer.appendChild(currentArticle);
+                        currentArticle = document.createElement('div');
+                        currentArticle.classList.add('article');
+                    }
+                    return;
+                }
+
+                const [sender, date, topic, keyTakeaways] = row;
+                
+                if (sender && date && topic && keyTakeaways) {
+                    // This is a new article
+                    if (currentArticle.children.length > 0) {
+                        newsContainer.appendChild(currentArticle);
+                        currentArticle = document.createElement('div');
+                        currentArticle.classList.add('article');
+                    }
+                    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                    currentArticle.innerHTML += `
+                        <div class="sender">${sender}</div>
+                        <div class="date">${formattedDate}</div>
+                        <div class="topic">${topic}</div>
+                        <div class="key-takeaways">${keyTakeaways}</div>
+                    `;
+                } else {
+                    // This is additional content for the current article
+                    currentArticle.innerHTML += `<div class="key-takeaways">${row.join(' ')}</div>`;
+                }
+            });
+
+            // Add the last article if it's not empty
+            if (currentArticle.children.length > 0) {
+                newsContainer.appendChild(currentArticle);
+            }
+
+            console.log('News displayed successfully.');
+        }
+
+        function setupFilters() {
+            const dateFilter = document.getElementById('date-filter');
+            const senderFilter = document.getElementById('sender-filter');
+
+            // Populate sender filter
+            const senders = new Set();
+            allNewsData.forEach(row => {
+                if (row[0]) { // Check if sender exists
+                    senders.add(row[0]);
+                }
+            });
+
+            senders.forEach(sender => {
+                const option = document.createElement('option');
+                option.value = sender;
+                option.textContent = sender;
+                senderFilter.appendChild(option);
+            });
+
+            // Set up event listeners
+            [dateFilter, senderFilter].forEach(filter => {
+                filter.addEventListener('change', applyFilters);
+            });
+        }
+
+        function applyFilters() {
+            const selectedDate = document.getElementById('date-filter').value;
+            const selectedSender = document.getElementById('sender-filter').value;
+
+            const filteredData = allNewsData.filter(row => {
+                if (!row[1]) return false; // No date, skip this row
+                
+                // Parse the date from the Google Sheet
+                const rowDate = new Date(row[1]);
+                // Create a date object from the selected date
+                const filterDate = new Date(selectedDate);
+                
+                // Compare year, month, and day
+                const dateMatches = selectedDate === '' || 
+                    (rowDate.getFullYear() === filterDate.getFullYear() &&
+                     rowDate.getMonth() === filterDate.getMonth() &&
+                     rowDate.getDate() === filterDate.getDate());
+
+                const sender = row[0];
+                const senderMatches = selectedSender === 'all' || sender === selectedSender;
+
+                return dateMatches && senderMatches;
+            });
+
+            displayNews(filteredData);
+        }
+
+        gapi.load('client', loadGoogleSheets);
+    </script>
+</body>
+</html>
